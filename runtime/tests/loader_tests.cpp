@@ -1107,6 +1107,56 @@ static void test_dll_main_image(Config &cfg) {
           "two modules in one place: %s", loader_error());
 }
 
+static void test_accepted_digests(Config &cfg) {
+    section("accept_sha256: further digests a module may have, and the profile overlay");
+    const std::string main_sha = loader_hash_file(cfg.main.c_str());
+    const std::string zeros(64, '0'), ones(64, '1');
+    LoaderModuleSpec beta = cfg.specs[1];
+    beta.sha256 = zeros.c_str();
+    const std::string accept = ones + " " + cfg.shas[1];
+    beta.accept_sha256 = accept.c_str();
+    check(loader_load_config(cfg.main.c_str(), main_sha.c_str(), &beta, 1),
+          "a module whose digest is in accept_sha256 loads: %s", loader_error());
+    const std::string wrong = ones + " " + zeros;
+    beta.accept_sha256 = wrong.c_str();
+    check(!loader_load_config(cfg.main.c_str(), main_sha.c_str(), &beta, 1) &&
+              strstr(loader_error(), "expected") && strstr(loader_error(), "(or "),
+          "one matching neither is refused, naming both: %s", loader_error());
+
+    // The profile overlay: a beta.dll in RECOMP_PROFILE_DIR is read instead of
+    // the installed one, under the same gate.
+    const std::string profile = g_dir + "/profile";
+    os_mkdir(profile.c_str());
+    std::vector<uint8_t> bytes;
+    if (FILE *f = fopen(cfg.paths[1].c_str(), "rb")) {
+        uint8_t buf[4096];
+        size_t n;
+        while ((n = fread(buf, 1, sizeof buf, f)) != 0)
+            bytes.insert(bytes.end(), buf, buf + n);
+        fclose(f);
+    }
+    bytes.push_back('\n'); // a different file, still the same image
+    const std::string overlaid = profile + "/beta.dll";
+    if (FILE *f = fopen(overlaid.c_str(), "wb")) {
+        fwrite(bytes.data(), 1, bytes.size(), f);
+        fclose(f);
+    }
+    g_written.push_back(overlaid);
+    const std::string overlaid_sha = loader_hash_file(overlaid.c_str());
+    os_setenv("RECOMP_PROFILE_DIR", profile.c_str());
+    LoaderModuleSpec installed = cfg.specs[1];
+    check(!loader_load_config(cfg.main.c_str(), main_sha.c_str(), &installed, 1) &&
+              strstr(loader_error(), "/profile/beta.dll"),
+          "the overlay file is taken first and gated by hash: %s", loader_error());
+    installed.accept_sha256 = overlaid_sha.c_str();
+    check(loader_load_config(cfg.main.c_str(), main_sha.c_str(), &installed, 1) &&
+              loader_module_named("beta.dll") &&
+              loader_module_named("beta.dll")->path == overlaid,
+          "an accepted overlay file loads from the profile: %s", loader_error());
+    os_unsetenv("RECOMP_PROFILE_DIR");
+    os_rmdir(profile.c_str());
+}
+
 static void test_heap_growth(Config &cfg) {
     section("the heap grows past its base arena, around module places");
     if (!load(cfg))
@@ -1518,6 +1568,7 @@ int main(int argc, char **argv) {
     test_exact_ranges(cfg);
     test_import_cycle(cfg);
     test_dll_main_image(cfg);
+    test_accepted_digests(cfg);
     test_guards_and_strict(argv[0]);
     test_dispatch_cache();
 

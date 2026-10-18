@@ -90,12 +90,14 @@ def render_header(cfg, developer_paths=True):
     lines.append("#define RECOMP_CD_AUDIO_TRACKS %s" % c_string_list(cfg.get("media", {}).get("cd_tracks", [])))
     lines.append("#define RECOMP_NET_OFFLINE_HOSTS %s" %
                  c_string_list(cfg.get("network", {}).get("offline_hosts", [])))
-    # Auxiliary modules the loader maps beside the image: {name, developer path, sha256, base, size}.
+    # Auxiliary modules the loader maps beside the image: {name, developer path, sha256, base, size,
+    # accept_sha256 (space-separated further digests, or 0)}.
     lines.append("#define RECOMP_AUX_MODULE_COUNT %d" % len(cfg["aux_modules"]))
     lines.append("#define RECOMP_AUX_MODULES {%s}" % ", ".join(
-        '{%s, %s, %s, %s, 0x%08xu}' % (c_string(m["name"]), local(m["path"]), c_string(m["sha256"]),
-                                        c_hex(m["base"]), m["size"])
-        for m in cfg["aux_modules"]) if cfg["aux_modules"] else "#define RECOMP_AUX_MODULES {{0, 0, 0, 0u, 0u}}")
+        '{%s, %s, %s, %s, 0x%08xu, %s}' % (c_string(m["name"]), local(m["path"]), c_string(m["sha256"]),
+                                            c_hex(m["base"]), m["size"],
+                                            c_string(" ".join(m.get("accept_sha256", []))) if m.get("accept_sha256") else "0")
+        for m in cfg["aux_modules"]) if cfg["aux_modules"] else "#define RECOMP_AUX_MODULES {{0, 0, 0, 0u, 0u, 0}}")
     # The mod runtime's built-in game integrations (animation clock, native
     # options menu, settings persistence, sprite view) were written against
     # Populous and hook its routines by address. Another game turns them off.

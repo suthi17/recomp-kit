@@ -244,8 +244,15 @@ class LoadTests(unittest.TestCase):
             header = gen_game_config.render_header(cfg)
             self.assertIn("#define RECOMP_GUEST_SIZE 0x10100000u", header)
             self.assertIn("#define RECOMP_AUX_MODULE_COUNT 1", header)
-            self.assertIn('{"Blit_p6.dll", "%s", "%s", 0x10000000u, 0x00028000u}' % ((game / "original/Blit_p6.dll").resolve().as_posix(), "ab" * 32),
+            self.assertIn('{"Blit_p6.dll", "%s", "%s", 0x10000000u, 0x00028000u, 0}' % ((game / "original/Blit_p6.dll").resolve().as_posix(), "ab" * 32),
                           header)
+            # accept_sha256: further digests the loader takes, space-separated in the header
+            accepted = text.replace('size = 0x28000', 'size = 0x28000\naccept_sha256 = ["%s", "%s"]' % ("cd" * 32, "ef" * 32))
+            (game / "game.toml").write_text(accepted)
+            cfg2 = game_config.load(game)
+            self.assertEqual(cfg2["aux_modules"][0]["accept_sha256"], ["cd" * 32, "ef" * 32])
+            self.assertIn('0x00028000u, "%s %s"}' % ("cd" * 32, "ef" * 32), gen_game_config.render_header(cfg2))
+            (game / "game.toml").write_text(text)
             cmake = gen_game_config.render_cmake(cfg)
             self.assertIn("set(RECOMP_GUEST_SIZE 0x10100000u)", cmake)
             self.assertIn("set(RECOMP_AUX_MODULES blit)", cmake)

@@ -311,8 +311,11 @@ def load_aux_modules(cfg, game_dir, source):
     and mapped - the loader and the translator both apply the module's base
     relocations when it prefers another base - and at least its SizeOfImage),
     listings (Ghidra export directory, relative), function_db (an
-    authoritative function database, relative; see translate.py FunctionDB)
-    and function_alignment (default 4). [game] guest_size must reach past
+    authoritative function database, relative; see translate.py FunctionDB),
+    function_alignment (default 4) and accept_sha256 (optional: further
+    digests the loader accepts for this module at run time, for a
+    resource-only module a player may replace, such as a language DLL; the
+    translation is still made from the file `sha256` names). [game] guest_size must reach past
     every module; the default arena is 0x10000000."""
     game = cfg["game"]
     guest_size = int(game.setdefault("guest_size", GUEST_SIZE_DEFAULT))
@@ -337,8 +340,13 @@ def load_aux_modules(cfg, game_dir, source):
                                                for a in entries):
             raise ValueError("%s: [modules.aux.%s] entry_points must be addresses inside the module"
                              % (source, key))
+        accept = entry.get("accept_sha256", [])
+        if not isinstance(accept, list) or any(not isinstance(h, str) or len(h) != 64 for h in accept):
+            raise ValueError("%s: [modules.aux.%s] accept_sha256 must be a list of SHA-256 hex digests"
+                             % (source, key))
         modules.append({
-            "key": key, "name": entry["name"], "sha256": entry["sha256"], "base": base, "size": size,
+            "key": key, "name": entry["name"], "sha256": entry["sha256"], "accept_sha256": accept,
+            "base": base, "size": size,
             "path": (game_dir / entry["path"]).resolve(),
             "listings_path": (game_dir / entry.get("listings", "analysis/" + entry["name"])).resolve(),
             "function_alignment": alignment,

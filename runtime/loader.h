@@ -36,10 +36,16 @@ bool loader_load(const char *exe_path = nullptr);
 // A module the loader maps beside the image, as game.toml [modules.aux.*]
 // describes it: the file name the guest asks for, the developer copy's path,
 // its SHA-256, the configured base and the size reserved there (at least
-// SizeOfImage). loader_load maps RECOMP_AUX_MODULES.
+// SizeOfImage). loader_load maps RECOMP_AUX_MODULES. A module is read from
+// the player's profile directory when a file of its name is there (an
+// overlay for a replaced language DLL), else from beside the executable.
 struct LoaderModuleSpec {
     const char *name, *path, *sha256;
     uint32_t base, size;
+    // Further SHA-256 digests the loader accepts for this module, separated
+    // by spaces; 0 when only sha256 is accepted. For a module a player may
+    // replace with a known alternative (a language DLL).
+    const char *accept_sha256;
 };
 // loader_load with an explicit image, hash and module list instead of the
 // build's configuration: for tests and tools. Everything else is the same,

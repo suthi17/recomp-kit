@@ -17,6 +17,7 @@ __attribute__((weak)) const uint32_t recomp_data_seed_count = 0;
 #include "memory.h"
 #include "imports.h"
 #include "win32.h"
+#include "layout.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -397,12 +398,40 @@ bool read_tls_directory(uint32_t base, uint32_t size, uint32_t tls_rva, uint32_t
 const LoaderModuleSpec g_aux_specs[] = RECOMP_AUX_MODULES;
 std::vector<LoaderModule> g_aux;
 
+// A digest the module may have: its configured sha256 or one of accept_sha256.
+static bool digest_accepted(const LoaderModuleSpec &spec, const std::string &digest) {
+    if (digest == spec.sha256)
+        return true;
+    if (!spec.accept_sha256)
+        return false;
+    const std::string list = spec.accept_sha256;
+    size_t pos = 0;
+    while (pos < list.size()) {
+        size_t end = list.find(' ', pos);
+        if (end == std::string::npos)
+            end = list.size();
+        if (end > pos && list.compare(pos, end - pos, digest) == 0)
+            return true;
+        pos = end + 1;
+    }
+    return false;
+}
+
 bool load_aux_module(const LoaderModuleSpec &spec) {
     LoaderModule m;
     m.name = spec.name;
-    m.path = dirname_of(g_exe_path) + "/" + spec.name;
     std::vector<uint8_t> file;
-    if (!read_file(m.path.c_str(), file)) {
+    // The player's profile overlays the install: a module placed there (a
+    // replaced language DLL) is taken first, under the same hash gate.
+    const std::string &profile = host_layout().profile_dir;
+    bool have = false;
+    if (!profile.empty()) {
+        m.path = profile + "/" + spec.name;
+        have = read_file(m.path.c_str(), file);
+    }
+    if (!have)
+        m.path = dirname_of(g_exe_path) + "/" + spec.name;
+    if (!have && !read_file(m.path.c_str(), file)) {
         const std::string root = std::string(RECOMP_DEVELOPER_GAME_DIR) + "/";
         const std::string configured = spec.path;
         bool found = false;
@@ -422,8 +451,10 @@ bool load_aux_module(const LoaderModuleSpec &spec) {
         }
     }
     std::string digest = sha256_hex(file);
-    if (digest != spec.sha256) {
+    if (!digest_accepted(spec, digest)) {
         g_error = m.path + " has SHA-256 " + digest + ", expected " + spec.sha256;
+        if (spec.accept_sha256)
+            g_error += std::string(" (or ") + spec.accept_sha256 + ")";
         return false;
     }
     if (file.size() < 0x40 || rd<uint16_t>(file, 0) != 0x5a4d) {

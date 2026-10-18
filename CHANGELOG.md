@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Auxiliary modules: `[modules.aux.<key>] accept_sha256` lists further
+  SHA-256 digests the loader accepts for a module at run time, for a
+  resource-only module a player may replace with a known alternative (a
+  language DLL); the import and the translation still use `sha256`. The
+  loader also reads an auxiliary module from the player's profile directory
+  when a file of its name is there, before the one beside the executable,
+  under the same hash gate, so a replaced module never touches the installed
+  copy. `RECOMP_AUX_MODULES` carries the list as a sixth field (space
+  separated, `0` when empty). Tests: `test_game_config.py`, `loader_tests`
+  "accept_sha256".
+
 - The guest-thread scheduler follows Windows' rules for one processor
   instead of a round robin by thread index. A ready thread's class is the
   priority Windows gives it (`SetThreadPriority` is kept now: 8 plus the
