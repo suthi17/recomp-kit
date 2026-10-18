@@ -355,6 +355,8 @@ void crt_fopen(X86 *c) {
         return;
     }
     std::string host = win32_host_path_op(path, op);
+    if (recomp_env("TRACE_FILES"))
+        LOGW("file: fopen \"%s\" (%s) -> \"%s\"", path.c_str(), mode.c_str(), host.c_str());
     OsStat st{};
     if (!host.empty() && os_stat(host.c_str(), &st) == 0 && st.is_dir) {
         set_errno(E_ACCES);

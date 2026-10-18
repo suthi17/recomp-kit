@@ -5173,7 +5173,6 @@ void sort_find_matches(HObj &o) {
 
 void find_first_named(X86 *c, const std::string &pattern, bool wide) {
     uint32_t data = arg(c, 1);
-
     // Split the pattern into a directory and a leaf mask.
     std::string dirpart, leaf = pattern;
     size_t slash = pattern.find_last_of("\\/");
@@ -5222,12 +5221,16 @@ void find_first_named(X86 *c, const std::string &pattern, bool wide) {
             }
     }
     if (o.matches.empty()) {
+        if (recomp_env("TRACE_FILES"))
+            LOGW("file: find \"%s\" -> none (dir \"%s\")", pattern.c_str(), o.find_dir.c_str());
         handles().erase(h);
         set_last_error(ERROR_FILE_NOT_FOUND_);
         set_eax(c, INVALID_HANDLE_VALUE_);
         return;
     }
     sort_find_matches(o);
+    if (recomp_env("TRACE_FILES"))
+        LOGW("file: find \"%s\" -> %zu, first \"%s\"", pattern.c_str(), o.matches.size(), o.match_paths[0].c_str());
     fill_find_data(data, o.match_paths[0], o.matches[0], wide);
     o.find_pos = 1;
     set_eax(c, h);
